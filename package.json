@@ -1,5 +1,5 @@
 {
-  "name": "shutterstock-mold",
+  "name": "@captemulation/mold",
   "version": "1.0.1",
   "description": "Easy dependency injection",
   "repository": "https://github.com/shutterstock/mold",
