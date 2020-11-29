@@ -1,3 +1,4 @@
+const { assert } = require('chai');
 const chai = require('chai');
 const builder = require('../lib');
 
@@ -355,19 +356,30 @@ describe('builder test suite', () => {
     });
   });
 
-  describe('disallows circular dependency', () => {
-    let d;
+  describe('Errors', () => {
+    it('Returns error with all missing dependencies', () => {
+      const d = builder({
+        breakfast(meat, egg, juice) {
+          return `${meat} ${egg} eggs ${juice} juice`;
+        },
+        solids: (meat, egg) => `${meat} ${egg}`,
+      }).dsl();
+      try {
+        d.getBreakfast();
+        assert(true, "should not end up here")
+      } catch (error) {
+        expect(error).instanceof(builder.UnresolvedDependencyError)
+        expect(error.missingDeps).to.deep.eq(['meat', 'egg', 'juice'])
+      }
+    });
 
-    beforeEach(() => {
-      d = builder({
+    it('disallows circular dependency', () => {
+      const d = builder({
         a: b => b,
         b: c => c,
         c: a => a,
       }).dsl();
-    });
-
-    it('with error message', () => {
       expect(d.getA).to.throw('Circular dependency error with a at a => c => b');
-    });
+    })
   });
 });

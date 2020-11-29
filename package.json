@@ -10,7 +10,7 @@
     "lint": "eslint lib test",
     "prepublishOnly": "npm run build"
   },
-  "author": "John Dean <jdean@shutterstock.com>",
+  "author": "John Dean <john.holmes.dean@gmail.com>",
   "license": "MIT",
   "dependencies": {
     "@captemulation/get-parameter-names": "^1.3.0",
