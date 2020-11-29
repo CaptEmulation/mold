@@ -1,42 +1,59 @@
-const union = require('lodash.union');
-const difference = require('lodash.difference');
-const getParameterNames = require('@captemulation/get-parameter-names');
+import union from 'lodash.union'
+import difference from 'lodash.difference'
+import getParameterNames from '@captemulation/get-parameter-names'
 
-class UnresolvedDependencyError extends Error {
-  constructor(message, missingDeps) {
+type AngularFunctionProvider<D extends string> = Function & {
+  $inject: D[]
+}
+type MinifiableProvider<D extends string, T extends D[] = D[]> = [...T, Function]
+type Provider<D extends string> = MinifiableProvider<D> | AngularFunctionProvider<D> | Function
+
+type InputDeps<D extends string> = { [key in D]: Provider<D> }
+type Service<D extends string>  = { loading?: boolean, dependencies: D[], provider: Function }
+type ServiceDeps<D extends string>  = { [key in D]: Service<D> }
+type ServiceDeps2<D extends {}>  = { [key in Extract<keyof D, string>]: D[key] extends () => any ? ReturnType<D[key]> : D[key] }
+
+type Factory<D extends string, R> = (deps: Provider<D>) => R
+
+type Resolver<D extends string> = (name: string, loading: D[], service: ServiceDeps<D>[D]) => () => any
+
+export class UnresolvedDependencyError extends Error {
+  public missingDeps: string[];
+
+  constructor(message: string, missingDeps: string[]) {
     super(message);
     this.missingDeps = missingDeps;
   }
 }
 
-function upperFirst(string) {
+function upperFirst(string: string) {
   return string.charAt(0).toUpperCase() + string.slice(1);
 }
 
-function camelPrepend(prefix, name) {
+function camelPrepend(prefix: string, name: string) {
   const ret = `${prefix}${upperFirst(name)}`;
   return ret;
 }
 
-function isFunction(func) {
+function isFunction(func: any): func is Function{
   return typeof func === 'function';
 }
 
-function isUndefined(t) {
+function isUndefined(t: any): t is undefined {
   return typeof t === 'undefined';
 }
 
-function getDeps(_provider) {
+function getDeps<D extends string>(_provider: Provider<D>) {
   let provider = isFunction(_provider) ? _provider : () => _provider;
-  let dependencies = provider;
+  let dependencies: D[];
 
   if (Array.isArray(_provider)) { // Array style
-    dependencies = _provider;
-    provider = _provider.pop();
-  } else if (_provider.$inject) {
-    dependencies = _provider.$inject; // $inject Angular style
+    provider = _provider.pop() as Function;
+    dependencies = _provider as D[];
+  } else if ((_provider as AngularFunctionProvider<D>).$inject) {
+    dependencies = (_provider as AngularFunctionProvider<D>).$inject; // $inject Angular style
   } else { // Code parse only style
-    dependencies = getParameterNames(provider);
+    dependencies = getParameterNames(provider) as D[];
   }
   return {
     dependencies,
@@ -44,31 +61,32 @@ function getDeps(_provider) {
   };
 }
 
-function createFactory(services) {
-  const serviceMap = {};
+function createFactory<D extends string>(services: InputDeps<D>) {
+  const serviceMap = {} as ServiceDeps<D | any>;
 
-  function decorateWithSetters({
-    $,
-    dsl,
-    deps,
-    resolver,
-  }) {
+  function decorateWithSetters<I extends string>(
+    $: Factory<D | I, any>,
+    dsl: (input?: InputDeps<I | D>) => any,
+    deps: InputDeps<I | D>,
+    resolver: Resolver<D | I>,
+  ) {
     // Find the dependencies not yet defined in deps
     // Find the union set of all dependencies
     // Get an array of all dependency arrays
-    const flattenedDeps = union(...Object.values(serviceMap)
-      .map(v => v.dependencies));
-    const serviceKeys = Object.keys(serviceMap);
-    const remaining = difference(flattenedDeps, Object.keys(deps));
+    const flattenedDeps = union(...Object.values<{ dependencies: D[] }>(serviceMap).map(v => v.dependencies));
+    const serviceKeys = Object.keys(serviceMap) as D[];
+    const remaining = difference(flattenedDeps, Object.keys(deps)) as D[];
 
     // Create an object to satify the remaining dependencies
-    const retFactory = remaining.reduce((prev, dep) => {
-      prev[camelPrepend('with', dep)] = (param) => {
-        deps[dep] = param;
-        return dsl(deps);
+    const retFactory = remaining.reduce((prev: any, dep: string) => {
+      prev[camelPrepend('with', dep)] = (param: any) => {
+        return dsl({
+          ...deps,
+          [dep]: param
+        } as InputDeps<D | I>);
       };
       return prev;
-    }, {});
+    }, {} as any);
 
     // Append services
     Object.defineProperties(retFactory,
@@ -85,6 +103,7 @@ function createFactory(services) {
             configurable: false,
           };
           if (serviceName !== '$') {
+            // @ts-ignore Not sure if this is possible in Typescript....
             memo[camelPrepend('get', serviceName)] = {
               value: getter,
               enumerable: true,
@@ -92,7 +111,7 @@ function createFactory(services) {
             };
           }
           return memo;
-        }, {}));
+        }, {} as { [key in D]: any }));
     Object.defineProperties(retFactory, {
       $: {
         value: $,
@@ -103,8 +122,8 @@ function createFactory(services) {
     return retFactory;
   }
 
-  function constructFactories(input) {
-    let $;
+  function constructFactories<I extends string>(input: InputDeps<I | D>) {
+    let $: Factory<D | I, any>;
     const deps = input || {};
     /**
      * Returns a function with attempts to load a service.
@@ -112,8 +131,8 @@ function createFactory(services) {
      *  - unitialized dependencies will be loaded
      *  - circular dependencies will cause error
      */
-    function resolver(name, loading, service) {
-      let singleton;
+    function resolver(name: string, loading: (I | D | '$')[], service: ServiceDeps<D | I>[D | I]) {
+      let singleton: any;
       return function serviceResolve() {
         if (!singleton) {
           if (service.loading) {
@@ -122,9 +141,9 @@ function createFactory(services) {
           service.loading = true;
           
           // Resolved dependencies
-          const args = [];
+          const args: any[] = [];
           // Unresolved dependencies
-          const unresolvedArgs = [];
+          const unresolvedArgs: (D | I)[] = [];
 
           // Iterate through dependencies
           service.dependencies.forEach((dep) => {
@@ -134,7 +153,7 @@ function createFactory(services) {
               && serviceMap[dep]
               && isFunction(serviceMap[dep].provider)
             ) {
-              const newflattenedDeps = [dep].concat(loading);
+              const newflattenedDeps = [dep, ...loading]
               // Recursively resolve the dependency and save
               deps[dep] = resolver(dep, newflattenedDeps, serviceMap[dep])();
             }
@@ -149,6 +168,7 @@ function createFactory(services) {
               unresolvedArgs.push(dep);
             }
           });
+          
           if (unresolvedArgs.length) {
             throw new UnresolvedDependencyError(`Failed to resolve ${unresolvedArgs.join(', ')} from ${Object.keys(deps)} at ${loading.join(' => ')}`, unresolvedArgs);
           }
@@ -166,27 +186,31 @@ function createFactory(services) {
             singleton = service.provider.apply(null, args);
           }
         }
-        
+
         return singleton;
       };
     }
 
     $ = provider => resolver('$', ['$'], getDeps(provider))();
-    return [$, resolver];
+    return [$, resolver] as [Factory<D | I, any>, typeof resolver];
   }
 
   const factory = {
-    define(moreServices) {
+    define<I extends string>(moreServices: InputDeps<I>) {
       // eslint-disable-next-line no-restricted-syntax
-      for (const [name, service] of Object.entries(moreServices)) {
-        if (name === '$') {
+      for (const [key, service] of Object.entries<any>(moreServices)) {
+        if (key === '$') {
           throw new Error('$ is a reserved internal dependency for factory functions');
         }
-        factory.service(Object.assign(getDeps(service), { name }));
+        const name: D = key as any;
+        factory.service({
+          ... getDeps(service),
+          name
+        })
       }
       return factory;
     },
-    service(deps) {
+    service(deps: Service<D> & { name: D }) {
       const { name, dependencies } = deps;
       const provider = isFunction(deps.provider) ? deps.provider : () => deps.provider;
 
@@ -201,21 +225,20 @@ function createFactory(services) {
 
       return factory;
     },
-    dsl(input = {}) {
+    dsl<I extends string>(input: InputDeps<I | D> = {} as InputDeps<I | D>): any {
       const [$, resolver] = constructFactories(input);
-      return decorateWithSetters({
+      return decorateWithSetters(
         $,
-        dsl: factory.dsl,
-        deps: input,
+        factory.dsl,
+        input,
         resolver,
-      });
+      );
     },
-    factory(deps = {}) {
+    factory<I extends string>(deps: InputDeps<I | D> = {} as InputDeps<I | D>) {
       return constructFactories(deps)[0];
     },
   };
   return factory.define(services || {});
 }
 
-module.exports = createFactory;
-module.exports.UnresolvedDependencyError = UnresolvedDependencyError;
+export default createFactory;

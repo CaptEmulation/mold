@@ -1,21 +1,18 @@
-const { assert } = require('chai');
-const chai = require('chai');
-const builder = require('../lib');
+import chai, { assert, expect } from 'chai'
+import chaiAsPromised from 'chai-as-promised'
+import builder from '../lib'
 
-const { expect } = chai;
-
-chai.use(require('chai-as-promised'));
+chai.use(chaiAsPromised);
 
 chai.config.includeStack = true;
 
 describe('builder test suite', () => {
   describe('the shape of a builder', () => {
-    let f; let
-      d;
+    let f: ReturnType<typeof builder>; let d: any;
 
     beforeEach(() => {
       f = builder({
-        breakfast(meat, egg, juice) {
+        breakfast(meat: string, egg: string, juice: string) {
           return `${meat} ${egg} eggs ${juice} juice`;
         },
       });
@@ -46,8 +43,7 @@ describe('builder test suite', () => {
   });
 
   describe('no dep services', () => {
-    let f; let
-      d;
+    let f: ReturnType<typeof builder>; let d: any;
 
     beforeEach(() => {
       f = builder({
