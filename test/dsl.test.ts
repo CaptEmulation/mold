@@ -1,6 +1,6 @@
 import chai, { assert, expect } from 'chai'
 import chaiAsPromised from 'chai-as-promised'
-import builder from '../lib'
+import builder, { Provider, InputDeps } from '../lib'
 
 chai.use(chaiAsPromised);
 
@@ -12,6 +12,7 @@ describe('builder test suite', () => {
 
     beforeEach(() => {
       f = builder({
+        // <string, 'meat', string, 'egg', string, 'juice', string>
         breakfast(meat: string, egg: string, juice: string) {
           return `${meat} ${egg} eggs ${juice} juice`;
         },
