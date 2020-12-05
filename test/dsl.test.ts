@@ -1,6 +1,6 @@
 import chai, { assert, expect } from 'chai'
 import chaiAsPromised from 'chai-as-promised'
-import builder, { Provider, InputDeps } from '../lib'
+import builder, { Provider, InputDeps, UnresolvedDependencyError } from '../lib'
 
 chai.use(chaiAsPromised);
 
@@ -67,14 +67,14 @@ describe('builder test suite', () => {
 
     it('$ is available as a dependency', () => {
       expect(builder({
-        foo: $ => $(bar => bar),
+        foo: $ => $((bar: string) => bar),
         bar: () => 'bar',
       }).dsl().getFoo()).to.equal('bar');
     });
 
     it('$ ran resolve new deps', () => {
       const b = builder({
-        foo: $ => $(bar => bar),
+        foo: $ => $((bar: string) => bar),
       });
       const f = b.dsl();
       b.define({
@@ -365,7 +365,7 @@ describe('builder test suite', () => {
         d.getBreakfast();
         assert(true, "should not end up here")
       } catch (error) {
-        expect(error).instanceof(builder.UnresolvedDependencyError)
+        expect(error).instanceof(UnresolvedDependencyError)
         expect(error.missingDeps).to.deep.eq(['meat', 'egg', 'juice'])
       }
     });

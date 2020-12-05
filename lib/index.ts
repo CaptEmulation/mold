@@ -42,8 +42,10 @@ type AngularFunctionProvider<R,
 > = CallableFactory<R, T0, T1, T2, T3, T4, T5, T6, T7, T8, T9> & {
   $inject: Exclude<D0 | D1 | D2 | D3 | D4 | D5 | D6 | D7 | D8 | D9, never>[]
 }
-type MinifiableProvider<R,
-  O extends { [key: string]: any }, D extends Extract<keyof O, string>,
+type MinifiableProvider<
+  R,
+  O extends { [key: string]: any }, 
+  D extends Extract<keyof O, string>,
   T0 = any,
   T1 = any,
   T2 = any,
@@ -70,7 +72,8 @@ type MinifiableProvider<R,
 
 export type Provider<
   R,
-  O extends { [key: string]: any }, D extends Extract<keyof O, string>,
+  O extends { [key: string]: any }, 
+  D extends Extract<keyof O, string>,
   D0 extends D = never,
   D1 extends D = never,
   D2 extends D = never,
@@ -280,17 +283,17 @@ function constructFactories<T extends { [key: string]: any}, D extends Extract<k
     };
   }
 
-  $ = <R>(provider: Provider<R, T | T1, D>) => resolver('$', ['$'], getDeps(provider))();
+  $ = <R>(provider: Provider<R, T | T1, D | D1>) => resolver('$', ['$'], getDeps(provider))();
   return [$, resolver] as [typeof $, typeof resolver];
 }
 
-function createFactory<T extends Provider<string, any>, D extends Extract<keyof T, string>>(services: InputDeps<T, D>) {
+function createFactory<O extends { [key: string]: any}, D extends Extract<keyof O, string>>(services: InputDeps<O, D>) {
   const serviceMap = {} as ServiceDeps<D>;
 
   function decorateWithSetters(
-    $: (provider: Provider<D, any>) => any,
-    dsl: (input?: InputDeps<T, D>) => any,
-    deps: InputDeps<T, D>,
+    $: (provider: Provider<any, O, D>) => any,
+    dsl: (input?: InputDeps<O, D>) => any,
+    deps: InputDeps<O, D>,
     resolver: Resolver<D>,
   ) {
     // Find the dependencies not yet defined in deps
@@ -306,7 +309,7 @@ function createFactory<T extends Provider<string, any>, D extends Extract<keyof 
         return dsl({
           ...deps,
           [dep]: param
-        } as InputDeps<T, D>);
+        } as InputDeps<O, D>);
       };
       return prev;
     }, {} as any);
