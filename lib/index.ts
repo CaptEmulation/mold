@@ -26,6 +26,18 @@ type CallableFactory<R,
   a9?: T9,
 ) => R
 
+type Dependency<R,
+T0 = any,
+T1 = any,
+T2 = any,
+T3 = any,
+T4 = any,
+T5 = any,
+T6 = any,
+T7 = any,
+T8 = any,
+T9 = any,
+> = CallableFactory<R, T0, T1, T2, T3, T4, T5, T6, T7, T8, T9> | Exclude<any, Function | any[]>
 
 type AngularFunctionProvider<R,
   O extends { [key: string]: any }, D extends Extract<keyof O, string>,
@@ -39,7 +51,7 @@ type AngularFunctionProvider<R,
   D7 extends D = never, T7 = void,
   D8 extends D = never, T8 = void,
   D9 extends D = never, T9 = void,
-> = CallableFactory<R, T0, T1, T2, T3, T4, T5, T6, T7, T8, T9> & {
+> = Dependency<R, T0, T1, T2, T3, T4, T5, T6, T7, T8, T9> & {
   $inject: Exclude<D0 | D1 | D2 | D3 | D4 | D5 | D6 | D7 | D8 | D9, never>[]
 }
 type MinifiableProvider<
@@ -57,18 +69,7 @@ type MinifiableProvider<
   T8 = any,
   T9 = any,
   T extends D[] = D[]
-> = [...T, (
-  a0?: T0, 
-  a1?: T1,
-  a2?: T2, 
-  a3?: T3,
-  a4?: T4, 
-  a5?: T5,
-  a6?: T6, 
-  a7?: T7,
-  a8?: T8, 
-  a9?: T9,
-) => R ]
+> = [...T, Dependency<R, T0, T1, T2, T3, T4, T5, T6, T7, T8, T9> ]
 
 export type Provider<
   R,
@@ -108,8 +109,25 @@ export type Provider<
 ) => R)
 
 export type InputDeps<O extends { [key: string]: any}, I extends Extract<keyof O, string>> = { [key: string]: Provider<O[I], O, I> }
-type Service<D extends string>  = { loading?: boolean, dependencies: D[], provider: Function }
-type ServiceDeps<D extends string>  = { [key in D]: Service<D> }
+type ProviderType<R, P extends Dependency<R>,   T0 = any,
+T1 = any,
+T2 = any,
+T3 = any,
+T4 = any,
+T5 = any,
+T6 = any,
+T7 = any,
+T8 = any,
+T9 = any> = P extends CallableFactory<R, T0, T1, T2, T3, T4, T5, T6, T7, T8, T9> ? ReturnType<P> : P
+
+type Service<
+  O extends { [key: string]: Dependency<O[D]> }, 
+  D extends Extract<keyof O, string>, 
+> = { loading?: boolean, dependencies: D[], provider: Dependency<O[D]> }
+type ServiceDeps<  
+  O extends { [key: string]: Dependency<O[D]> }, 
+  D extends Extract<keyof O, string>
+>  = { [key in D]: Service<O, D> }
 type ServiceDeps2<D extends {}>  = { [key in Extract<keyof D, string>]: D[key] extends () => any ? ReturnType<D[key]> : D[key] }
 
 type Factory<
@@ -161,7 +179,10 @@ type Factory<
 //   D9 extends D = never, T9 = void,
 // > = (deps: Provider<Exclude<D0 | D1 | D2 | D3 | D4 | D5 | D6 | D7 | D8 | D9, never>, R>) => R
 
-type Resolver<D extends string> = (name: string, loading: D[], service: ServiceDeps<D>[D]) => () => any
+type Resolver<
+O extends { [key: string]: Dependency<O[D]> }, 
+D extends Extract<keyof O, string>, 
+> = (name: string, loading: D[], service: ServiceDeps<O, D>[D]) => () => any
 
 export class UnresolvedDependencyError extends Error {
   public missingDeps: string[];
@@ -189,12 +210,15 @@ function isUndefined(t: any): t is undefined {
   return typeof t === 'undefined';
 }
 
-function getDeps<R, O extends { [key: string]: any }, D extends Extract<keyof O, string>>(_provider: Provider<R, O, D>) {
-  let provider = isFunction(_provider) ? _provider : () => _provider;
+function getDeps<R, O extends { [key: string]: any }, D extends Extract<keyof O, string>>(_provider: Provider<R, O, D>): {
+  dependencies: D[];
+  provider: Dependency<R>;
+} {
+  let provider: Dependency<R> = isFunction(_provider) ? _provider : () => _provider;
   let dependencies: D[];
 
   if (Array.isArray(_provider)) { // Array style
-    provider = _provider.pop() as CallableFactory<any>;
+    provider = _provider.pop() as Dependency<R>;
     dependencies = _provider as D[];
   } else if ((_provider as AngularFunctionProvider<R, O, D>).$inject) {
     dependencies = (_provider as AngularFunctionProvider<R, O, D>).$inject; // $inject Angular style
@@ -207,16 +231,20 @@ function getDeps<R, O extends { [key: string]: any }, D extends Extract<keyof O,
   };
 }
 
-function constructFactories<T extends { [key: string]: any}, D extends Extract<keyof T, string>, T1 extends { [key: string]: any}, D1 extends Extract<keyof T1, string>>(input: InputDeps<T, D>, serviceMap: ServiceDeps<D1>) {
-  let $: <R>(provider: Provider<R, T | T1, D | D1>) => any;
-  const deps: InputDeps<T, D> = input || {};
+function constructFactories<O extends { [key: string]: any}, D extends Extract<keyof O, string>, O1 extends { [key: string]: any}, D1 extends Extract<keyof O1, string>>(input: InputDeps<O, D>, serviceMap: ServiceDeps<O1, D1>) {
+  let $: <R>(provider: Provider<R, O | O1, D | D1> | (D | D1) | (D | D1)) => ProviderType<R, O | O1, D | D1, Provider<
+  R,
+  O | O1,
+  D | D1
+>>;
+  const deps: InputDeps<O, D> = input || {};
   /**
    * Returns a function with attempts to load a service.
    *  - cached value of service will be used if already resolved
    *  - unitialized dependencies will be loaded
    *  - circular dependencies will cause error
    */
-  function resolver(name: string, loading: (D | D1 | '$')[], service: ServiceDeps<D | D1>[D | D1]) {
+  function resolver(name: string, loading: (D | D1 | '$')[], service: ServiceDeps<O | O1, D | D1>[D | D1]) {
     let singleton: any;
     return function serviceResolve() {
       if (!singleton) {
@@ -283,23 +311,43 @@ function constructFactories<T extends { [key: string]: any}, D extends Extract<k
     };
   }
 
-  $ = <R>(provider: Provider<R, T | T1, D | D1>) => resolver('$', ['$'], getDeps(provider))();
+  $ = <R>(provider: Provider<R, O | O1, D | D1>) => resolver('$', ['$'], getDeps(provider))();
+  const $$ = (...deps: (D | D1)[]) => deps.map(dep => resolver(dep, [dep], serviceMap[dep]))
   return [$, resolver] as [typeof $, typeof resolver];
 }
 
-function createFactory<O extends { [key: string]: any}, D extends Extract<keyof O, string>>(services: InputDeps<O, D>) {
-  const serviceMap = {} as ServiceDeps<D>;
+function createFactory<O extends { [key: string]: any}, D extends Extract<keyof O, string>, O1 extends { [key: string]: any}, D1 extends Extract<keyof O1, string>>(services: InputDeps<O, D>, _existingServices?: InputDeps<O1, D1>, _serviceMap?: ServiceDeps<O | O1, D | D1>) {
+  const keys = Object.keys(services || {}) as D[]
+  const serviceMap = keys.reduce((memo, key) => {
+    if (key === '$') {
+      throw new Error('$ is a reserved internal dependency for factory functions');
+    }
+    const deps = getDeps<any, O, D>(services[key]);
+    const { dependencies } = deps;
+    const provider = isFunction(deps.provider) ? deps.provider : () => deps.provider;
+
+    if (memo[key]) {
+      throw new Error(`Already have ${key} registered`);
+    }
+
+    memo[key] = {
+      dependencies,
+      provider,
+    };
+
+    return memo;
+  }, _serviceMap || {} as ServiceDeps<O | O1, D | D1>)
 
   function decorateWithSetters(
     $: (provider: Provider<any, O, D>) => any,
     dsl: (input?: InputDeps<O, D>) => any,
     deps: InputDeps<O, D>,
-    resolver: Resolver<D>,
+    resolver: Resolver<O | O1, D | D1>,
   ) {
     // Find the dependencies not yet defined in deps
     // Find the union set of all dependencies
     // Get an array of all dependency arrays
-    const flattenedDeps = union(...Object.values<{ dependencies: D[] }>(serviceMap).map(v => v.dependencies));
+    const flattenedDeps = union(...Object.values<{ dependencies: (D | D1)[] }>(serviceMap).map(v => v.dependencies));
     const serviceKeys = Object.keys(serviceMap) as D[];
     const remaining = difference(flattenedDeps, Object.keys(deps)) as D[];
 
@@ -349,36 +397,10 @@ function createFactory<O extends { [key: string]: any}, D extends Extract<keyof 
   }
 
   const factory = {
-    define<T1 extends { [key: string]: any}, D1 extends Extract<keyof T1, string>>(moreServices: InputDeps<T1, D1>) {
-      // eslint-disable-next-line no-restricted-syntax
-      for (const [key, service] of Object.entries<any>(moreServices)) {
-        if (key === '$') {
-          throw new Error('$ is a reserved internal dependency for factory functions');
-        }
-        const name: D = key as any;
-        factory.service({
-          ... getDeps(service),
-          name
-        })
-      }
-      return factory;
+    define<O1 extends { [key: string]: any}, D1 extends Extract<keyof O1, string>>(moreServices: InputDeps<O1, D1>) {
+      return createFactory<O1, D1, O, D>(moreServices, services, serviceMap as ServiceDeps<O | O1, D | D1>)
     },
-    service(deps: Service<D> & { name: D }) {
-      const { name, dependencies } = deps;
-      const provider = isFunction(deps.provider) ? deps.provider : () => deps.provider;
-
-      if (serviceMap[name]) {
-        throw new Error(`Already have ${name} registered`);
-      }
-
-      serviceMap[name] = {
-        dependencies,
-        provider,
-      };
-
-      return factory;
-    },
-    dsl<T1 extends { [key: string]: any}, D1 extends Extract<keyof T1, string>>(input: InputDeps<T1, D1> = {} as InputDeps<T1, D1>): any {
+    dsl<O1 extends { [key: string]: any}, D1 extends Extract<keyof O1, string>>(input: InputDeps<O1, D1> = {} as InputDeps<O1, D1>) {
       const [$, resolver] = constructFactories(input, serviceMap);
       return decorateWithSetters(
         $,
@@ -392,7 +414,7 @@ function createFactory<O extends { [key: string]: any}, D extends Extract<keyof 
       return constructFactories(deps, serviceMap)[0];
     },
   };
-  return factory.define(services || {});
+  return factory;
 }
 
 export default createFactory;

@@ -76,11 +76,11 @@ describe('builder test suite', () => {
       const b = builder({
         foo: $ => $((bar: string) => bar),
       });
-      const f = b.dsl();
-      b.define({
+      const f = b.define({
         bar: 'bar',
       });
-      expect(f.foo).to.equal('bar');
+      const g = f.dsl();
+      expect(g.foo).to.equal('bar');
     });
   });
 
