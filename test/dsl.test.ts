@@ -1,6 +1,6 @@
-import chai, { assert, expect } from 'chai'
-import chaiAsPromised from 'chai-as-promised'
-import builder, { Provider, InputDeps, UnresolvedDependencyError } from '../lib'
+import chai, { assert, expect } from 'chai';
+import chaiAsPromised from 'chai-as-promised';
+import builder, { Provider, InputDeps, UnresolvedDependencyError } from '../lib';
 
 chai.use(chaiAsPromised);
 
@@ -67,14 +67,14 @@ describe('builder test suite', () => {
 
     it('$ is available as a dependency', () => {
       expect(builder({
-        foo: $ => $((bar: string) => bar),
+        foo: ($) => $((bar: string) => bar),
         bar: () => 'bar',
       }).dsl().getFoo()).to.equal('bar');
     });
 
     it('$ ran resolve new deps', () => {
       const b = builder({
-        foo: $ => $((bar: string) => bar),
+        foo: ($) => $((bar: string) => bar),
       });
       const f = b.define({
         bar: 'bar',
@@ -89,15 +89,15 @@ describe('builder test suite', () => {
       const b = builder({
         foo: 'foo',
       });
-      expect(b.factory()(foo => foo)).to.equal('foo');
+      expect(b.factory()((foo) => foo)).to.equal('foo');
     });
 
     it('can still use a resolver', () => {
       const b = builder({
-        foo: $ => $(bar => bar),
+        foo: ($) => $((bar) => bar),
         bar: () => 'bar',
       });
-      expect(b.factory()(foo => foo)).to.equal('bar');
+      expect(b.factory()((foo) => foo)).to.equal('bar');
     });
   });
 
@@ -108,9 +108,9 @@ describe('builder test suite', () => {
       });
       const f = b.dsl();
       b.define({
-        bar: foo => foo,
+        bar: (foo) => foo,
       });
-      expect(f.$(bar => bar)).to.equal('foo');
+      expect(f.$((bar) => bar)).to.equal('foo');
     });
   });
 
@@ -153,7 +153,7 @@ describe('builder test suite', () => {
         egg: 'scrambled',
         juice: 'orange',
       });
-      expect(d.$(breakfast => breakfast)).to.equal('ham scrambled eggs orange juice');
+      expect(d.$((breakfast) => breakfast)).to.equal('ham scrambled eggs orange juice');
     });
   });
 
@@ -168,14 +168,14 @@ describe('builder test suite', () => {
         egg: 'scrambled',
         juice: 'orange',
       });
-      expect(f.$(breakfast => breakfast)).to.equal('ham scrambled eggs orange juice');
+      expect(f.$((breakfast) => breakfast)).to.equal('ham scrambled eggs orange juice');
     });
 
     it('obtain construct instance', () => {
       const f = builder().dsl({
         meat: 'ham',
       });
-      expect(f.$(meat => meat)).to.equal('ham');
+      expect(f.$((meat) => meat)).to.equal('ham');
     });
 
     it('multiple deps', () => {
@@ -191,14 +191,14 @@ describe('builder test suite', () => {
       const f = builder().factory({
         meat: Promise.resolve('ham'),
       });
-      return expect(f(meat => meat)).to.eventually.equal('ham');
+      return expect(f((meat) => meat)).to.eventually.equal('ham');
     });
 
     it('async failure', () => {
       const f = builder().factory({
         meat: Promise.reject(new Error('ham')),
       });
-      return expect(f(meat => meat)).to.rejectedWith(Error);
+      return expect(f((meat) => meat)).to.rejectedWith(Error);
     });
   });
 
@@ -241,9 +241,9 @@ describe('builder test suite', () => {
     });
 
     it('$ ran resolve new deps', () => {
-      const barProvider = bar => bar;
+      const barProvider = (bar) => bar;
       barProvider.$inject = ['bar'];
-      const foo = $ => $(barProvider);
+      const foo = ($) => $(barProvider);
       foo.$inject = ['$'];
       const b = builder({
         foo,
@@ -292,7 +292,7 @@ describe('builder test suite', () => {
 
     it('$ ran resolve new deps', () => {
       const b = builder({
-        foo: ['$', $ => $(['bar', bar => bar])],
+        foo: ['$', ($) => $(['bar', (bar) => bar])],
       });
       const g = b.dsl();
       b.define({
@@ -363,20 +363,20 @@ describe('builder test suite', () => {
       }).dsl();
       try {
         d.getBreakfast();
-        assert(true, "should not end up here")
+        assert(true, 'should not end up here');
       } catch (error) {
-        expect(error).instanceof(UnresolvedDependencyError)
-        expect(error.missingDeps).to.deep.eq(['meat', 'egg', 'juice'])
+        expect(error).instanceof(UnresolvedDependencyError);
+        expect(error.missingDeps).to.deep.eq(['meat', 'egg', 'juice']);
       }
     });
 
     it('disallows circular dependency', () => {
       const d = builder({
-        a: b => b,
-        b: c => c,
-        c: a => a,
+        a: (b) => b,
+        b: (c) => c,
+        c: (a) => a,
       }).dsl();
       expect(d.getA).to.throw('Circular dependency error with a at a => c => b');
-    })
+    });
   });
 });
