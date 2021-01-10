@@ -69,7 +69,7 @@ describe.only('#types', () => {
         'ham scrambled eggs orange juice'
       );
       expect(get('breakfast')).to.equal('ham scrambled eggs orange juice');
-      const a = get('juice');
+      const [a] = spread(['juice']);
     });
   });
 });
